@@ -11,6 +11,7 @@ import (
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 
 	"github.com/device-management-toolkit/console/config"
+	"github.com/device-management-toolkit/console/internal/controller/httpapi/ea"
 	"github.com/device-management-toolkit/console/internal/controller/httpapi/middleware"
 	v1 "github.com/device-management-toolkit/console/internal/controller/httpapi/v1"
 	v2 "github.com/device-management-toolkit/console/internal/controller/httpapi/v2"
@@ -58,6 +59,12 @@ func NewRouter(handler *gin.Engine, l logger.Interface, t usecase.Usecases, cfg 
 	vr := v1.NewVersionRoute(cfg)
 	handler.GET("/version", vr.LatestReleaseHandler)
 
+	// Built-in Enterprise Assistant for rpc-go (--eaAddress <origin>/ea). It
+	// has its own token scheme, so it stays outside the /api JWT group.
+	if t.EnterpriseAssistant != nil {
+		ea.NewRoutes(handler.Group("/ea"), t.EnterpriseAssistant, l)
+	}
+
 	// Protected routes using JWT middleware
 	var protected *gin.RouterGroup
 	if cfg.Disabled {
@@ -91,6 +98,10 @@ func NewRouter(handler *gin.Engine, l logger.Interface, t usecase.Usecases, cfg 
 	h3 := protected.Group("/v2")
 	{
 		v2.NewAmtRoutes(h3, t.Devices, l)
+
+		if t.EnterpriseAssistant != nil {
+			v2.NewEnterpriseAssistantRoutes(h3, t.EnterpriseAssistant, l)
+		}
 	}
 
 	v1.NewPackageRoutes(protected, packaging.New(cfg, l), l)
