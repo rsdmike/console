@@ -97,6 +97,7 @@ func TestUsecases(t *testing.T) {
 			assert.NotNil(t, uc.IEEE8021xProfiles)
 			assert.NotNil(t, uc.CIRAConfigs)
 			assert.NotNil(t, uc.WirelessProfiles)
+			assert.NotNil(t, uc.EnterpriseAssistant)
 
 			assert.Equal(t, tc.expectedResult.Domains, uc.Domains)
 			assert.Equal(t, tc.expectedResult.Devices, uc.Devices)

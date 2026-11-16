@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"io"
 
 	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/security"
@@ -11,6 +12,7 @@ import (
 	"github.com/device-management-toolkit/console/internal/usecase/devices"
 	"github.com/device-management-toolkit/console/internal/usecase/devices/wsman"
 	"github.com/device-management-toolkit/console/internal/usecase/domains"
+	"github.com/device-management-toolkit/console/internal/usecase/enterpriseassistant"
 	"github.com/device-management-toolkit/console/internal/usecase/export"
 	"github.com/device-management-toolkit/console/internal/usecase/ieee8021xconfigs"
 	"github.com/device-management-toolkit/console/internal/usecase/profiles"
@@ -18,6 +20,9 @@ import (
 	"github.com/device-management-toolkit/console/internal/usecase/sqldb"
 	"github.com/device-management-toolkit/console/internal/usecase/wificonfigs"
 	"github.com/device-management-toolkit/console/pkg/db"
+	"github.com/device-management-toolkit/console/pkg/ea/ad"
+	"github.com/device-management-toolkit/console/pkg/ea/adcs"
+	"github.com/device-management-toolkit/console/pkg/ea/csr"
 	"github.com/device-management-toolkit/console/pkg/logger"
 )
 
@@ -72,6 +77,25 @@ type Usecases struct {
 	CIRAConfigs        ciraconfigs.Feature
 	WirelessProfiles   wificonfigs.Feature
 	Exporter           export.Exporter
+	// EnterpriseAssistant serves /ea and the EA settings API.
+	EnterpriseAssistant enterpriseassistant.Feature
+}
+
+// dialDirectory adapts ad.Dial to enterpriseassistant.DirectoryDialer,
+// returning a nil interface (not a typed nil) on error.
+func dialDirectory(ctx context.Context, c ad.Config) (enterpriseassistant.Directory, error) {
+	client, err := ad.Dial(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+func newCA(c adcs.Config) enterpriseassistant.CertificateAuthority { return adcs.New(c) }
+
+func newEnterpriseAssistant(log logger.Interface) *enterpriseassistant.UseCase {
+	return enterpriseassistant.New(log, dialDirectory, newCA, csr.BuildNullSigned, enterpriseassistant.NewConfigStore())
 }
 
 // NewUseCases wires every use case from a repo bundle. The caller picks the
@@ -91,14 +115,15 @@ func NewUseCases(repos *Repos, log logger.Interface, certStore security.Storager
 	wificonfig := wificonfigs.New(repos.WirelessConfigs, ieee, log, safeRequirements)
 
 	return &Usecases{
-		Domains:            domains1,
-		Devices:            devices.New(repos.Devices, wsman1, devices.NewRedirector(safeRequirements), log, safeRequirements),
-		AMTExplorer:        amtexplorer.New(repos.Devices, wsman2, log, safeRequirements),
-		Profiles:           profiles.New(repos.Profiles, repos.WirelessConfigs, pwc, ieee, log, domains1, repos.CIRAConfigs, safeRequirements, config.ConsoleConfig.DisableCIRA),
-		IEEE8021xProfiles:  ieee,
-		CIRAConfigs:        ciraconfigs.New(repos.CIRAConfigs, log, safeRequirements),
-		WirelessProfiles:   wificonfig,
-		ProfileWiFiConfigs: pwc,
-		Exporter:           export.NewFileExporter(),
+		Domains:             domains1,
+		Devices:             devices.New(repos.Devices, wsman1, devices.NewRedirector(safeRequirements), log, safeRequirements),
+		AMTExplorer:         amtexplorer.New(repos.Devices, wsman2, log, safeRequirements),
+		Profiles:            profiles.New(repos.Profiles, repos.WirelessConfigs, pwc, ieee, log, domains1, repos.CIRAConfigs, safeRequirements, config.ConsoleConfig.DisableCIRA),
+		IEEE8021xProfiles:   ieee,
+		CIRAConfigs:         ciraconfigs.New(repos.CIRAConfigs, log, safeRequirements),
+		WirelessProfiles:    wificonfig,
+		ProfileWiFiConfigs:  pwc,
+		Exporter:            export.NewFileExporter(),
+		EnterpriseAssistant: newEnterpriseAssistant(log),
 	}
 }
