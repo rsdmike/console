@@ -116,6 +116,47 @@ type (
 		URL      string `yaml:"url" env:"EA_URL"`
 		Username string `yaml:"username" env:"EA_USERNAME"`
 		Password string `yaml:"password" env:"EA_PASSWORD"`
+		// Enabled serves the built-in Enterprise Assistant endpoints under /ea.
+		// rpc-go then uses <console origin>/ea as its --eaAddress.
+		Enabled bool `yaml:"enabled" env:"EA_ENABLED"`
+		// DeviceNameType picks the AD computer name: "hostname" (device name)
+		// or "nodeid" (first 12 characters of the AMT GUID).
+		DeviceNameType string                 `yaml:"deviceNameType" env:"EA_DEVICE_NAME_TYPE"`
+		AD             EAActiveDirectory      `yaml:"ad"`
+		CA             EACertificateAuthority `yaml:"ca"`
+	}
+
+	// EAActiveDirectory holds how Console reaches Active Directory over LDAPS.
+	EAActiveDirectory struct {
+		// Domain is the DNS domain, e.g. vprodemo.com.
+		Domain string `yaml:"domain" env:"EA_AD_DOMAIN"`
+		// Server is host[:port] of a domain controller; empty means DNS SRV discovery.
+		Server string `yaml:"server" env:"EA_AD_SERVER"`
+		// BindUsername is the service account UPN (svc-ea@vprodemo.com).
+		BindUsername string `yaml:"bindUsername" env:"EA_AD_BIND_USERNAME"`
+		BindPassword string `yaml:"bindPassword" env:"EA_AD_BIND_PASSWORD"`
+		// ComputerOU is the container for AMT computers relative to the domain
+		// root, e.g. "CN=Computers" or "OU=AMT,OU=Devices".
+		ComputerOU string `yaml:"computerOU" env:"EA_AD_COMPUTER_OU"`
+		// SecurityGroups are group DNs every AMT computer joins.
+		SecurityGroups     []string `yaml:"securityGroups" env:"EA_AD_SECURITY_GROUPS" env-separator:";"`
+		InsecureSkipVerify bool     `yaml:"insecureSkipVerify" env:"EA_AD_INSECURE_SKIP_VERIFY"`
+	}
+
+	// EACertificateAuthority holds how Console reaches the Microsoft CA over MS-RPC.
+	// It authenticates with the AD bind account.
+	EACertificateAuthority struct {
+		// Host is the CA server's DNS name, e.g. ca1.vprodemo.com.
+		Host string `yaml:"host" env:"EA_CA_HOST"`
+		// Name is the CA's common name, e.g. vprodemo-CA.
+		Name string `yaml:"name" env:"EA_CA_NAME"`
+		// Template is the certificate template name, e.g. AMT8021X.
+		Template string `yaml:"template" env:"EA_CA_TEMPLATE"`
+		// CommonName picks the subject CN: dnsfqdn, hostname, userprincipalname,
+		// samaccountname, uuid or distinguishedname.
+		CommonName string `yaml:"commonName" env:"EA_CA_COMMON_NAME"`
+		// AltNames lists the SAN kinds to add, same vocabulary as CommonName.
+		AltNames []string `yaml:"altNames" env:"EA_CA_ALT_NAMES" env-separator:","`
 	}
 
 	// Auth -.
@@ -257,9 +298,15 @@ func defaultConfig() *Config {
 			URL:      "",
 		},
 		EA: EA{
-			URL:      "http://localhost:8000",
-			Username: "",
-			Password: "",
+			URL:            "http://localhost:8000",
+			Username:       "",
+			Password:       "",
+			DeviceNameType: "hostname",
+			AD:             EAActiveDirectory{ComputerOU: "CN=Computers"},
+			CA: EACertificateAuthority{
+				CommonName: "dnsfqdn",
+				AltNames:   []string{"distinguishedname", "dnsfqdn", "hostname", "userprincipalname", "samaccountname", "uuid"},
+			},
 		},
 		Auth: Auth{
 			AdminUsername:            "standalone",
@@ -436,6 +483,22 @@ func SaveAdminPassword(adminPassword string) error {
 	}
 
 	return updateConfigFile(configPath, func(c *Config) { c.AdminPassword = adminPassword })
+}
+
+// SaveEASettings persists the ea section to config.yml without touching any
+// other field, through the same env-free path as SaveAdminPassword.
+func SaveEASettings(ea EA) error {
+	var configPathFlag string
+	if f := flag.Lookup("config"); f != nil {
+		configPathFlag = f.Value.String()
+	}
+
+	configPath, err := resolveConfigPath(configPathFlag)
+	if err != nil {
+		return err
+	}
+
+	return updateConfigFile(configPath, func(c *Config) { c.EA = ea })
 }
 
 // updateConfigFile applies mutate to the file's own contents, never to the env-overlaid Config.
