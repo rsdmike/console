@@ -14,6 +14,7 @@ require (
 	github.com/gin-contrib/pprof v1.5.8
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-fuego/fuego v0.21.0
+	github.com/go-ldap/ldap/v3 v3.4.15
 	github.com/go-playground/validator/v10 v10.30.6
 	github.com/go-xmlfmt/xmlfmt v1.1.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -37,6 +38,7 @@ require (
 )
 
 require (
+	github.com/Azure/go-ntlmssp v0.1.1 // indirect
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
@@ -49,6 +51,7 @@ require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.16 // indirect
 	github.com/gin-contrib/sse v1.1.1 // indirect
+	github.com/go-asn1-ber/asn1-ber v1.5.8 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
 	github.com/go-openapi/jsonpointer v1.0.1 // indirect
 	github.com/go-playground/locales v0.14.2 // indirect
