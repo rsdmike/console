@@ -498,7 +498,22 @@ func SaveEASettings(ea EA) error {
 		return err
 	}
 
-	return updateConfigFile(configPath, func(c *Config) { c.EA = ea })
+	return updateConfigFile(configPath, func(c *Config) { c.EA = keepEnvOnlyEASecrets(c.EA, ea, os.Getenv) })
+}
+
+// keepEnvOnlyEASecrets stops a secret that came only from an env var
+// (EA_PASSWORD, EA_AD_BIND_PASSWORD) from being written to disk: when next
+// still carries the env value, the file keeps its own value.
+func keepEnvOnlyEASecrets(file, next EA, getenv func(string) string) EA {
+	if v := getenv("EA_PASSWORD"); v != "" && next.Password == v {
+		next.Password = file.Password
+	}
+
+	if v := getenv("EA_AD_BIND_PASSWORD"); v != "" && next.AD.BindPassword == v {
+		next.AD.BindPassword = file.AD.BindPassword
+	}
+
+	return next
 }
 
 // updateConfigFile applies mutate to the file's own contents, never to the env-overlaid Config.
